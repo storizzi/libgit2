@@ -80,7 +80,7 @@ void test_repo_sparse__updates_skip_worktree_flags(void)
 	const git_index_entry *indexed;
 
 	entry.mode = GIT_FILEMODE_BLOB;
-	cl_git_pass(git_oid_from_string(
+	cl_git_pass(git_oid__fromstr(
 	        &entry.id, "a71586c1dfe8a71c6cbf6c129f404c5642ff31bd",
 	        GIT_OID_SHA1));
 

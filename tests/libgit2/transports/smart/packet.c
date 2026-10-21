@@ -379,7 +379,7 @@ void test_transports_smart_packet__blob_none_filter_request(void)
 	transport_smart_caps caps = { 0 };
 	git_str packet = GIT_STR_INIT;
 
-	cl_git_pass(git_oid_from_string(
+	cl_git_pass(git_oid__fromstr(
 		&head.oid, "0000000000000000000000000000000000000000", GIT_OID_SHA1));
 
 	wants.refs = refs;
@@ -406,7 +406,7 @@ void test_transports_smart_packet__reachable_oid_capability(void)
 	transport_smart_caps caps = { 0 };
 	git_str packet = GIT_STR_INIT;
 
-	cl_git_pass(git_oid_from_string(
+	cl_git_pass(git_oid__fromstr(
 		&head.oid, "0000000000000000000000000000000000000000", GIT_OID_SHA1));
 
 	wants.refs = refs;

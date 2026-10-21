@@ -92,7 +92,7 @@ void test_network_fetchlocal__fetch_oids(void)
 	cl_set_cleanup(&cleanup_local_repo, "foo");
 	cl_git_pass(git_repository_init(&repo, "foo", true));
 	cl_git_pass(git_remote_create(&origin, repo, GIT_REMOTE_ORIGIN, url));
-	cl_git_pass(git_oid_from_string(
+	cl_git_pass(git_oid__fromstr(
 		&oid, "a8233120f6ad708f843d861ce2b7228ec4e3dec6", GIT_OID_SHA1));
 
 	oids.ids = &oid;
@@ -121,7 +121,7 @@ void test_network_fetchlocal__fetch_promisor_oids(void)
 	cl_git_pass(git_remote_create(&origin, repo, GIT_REMOTE_ORIGIN, url));
 	cl_git_pass(git_repository__set_partial_clone(
 	        repo, GIT_REMOTE_ORIGIN, "blob:none"));
-	cl_git_pass(git_oid_from_string(
+	cl_git_pass(git_oid__fromstr(
 	        &oid, "a8233120f6ad708f843d861ce2b7228ec4e3dec6", GIT_OID_SHA1));
 
 	oids.ids = &oid;
@@ -145,7 +145,7 @@ void test_network_fetchlocal__reads_promisor_objects(void)
 	git_oid oid;
 
 	setup_promisor_repository(&repo, &origin, &odb);
-	cl_git_pass(git_oid_from_string(
+	cl_git_pass(git_oid__fromstr(
 	        &oid, "a8233120f6ad708f843d861ce2b7228ec4e3dec6",
 	        GIT_OID_SHA1));
 
@@ -168,7 +168,7 @@ void test_network_fetchlocal__reads_promisor_objects_with_fetch_options(void)
 	int callcount = 0;
 
 	setup_promisor_repository(&repo, &origin, &odb);
-	cl_git_pass(git_oid_from_string(
+	cl_git_pass(git_oid__fromstr(
 		&oid, "a8233120f6ad708f843d861ce2b7228ec4e3dec6",
 		GIT_OID_SHA1));
 
@@ -196,7 +196,7 @@ void test_network_fetchlocal__reads_promisor_object_headers(void)
 	size_t length;
 
 	setup_promisor_repository(&repo, &origin, &odb);
-	cl_git_pass(git_oid_from_string(
+	cl_git_pass(git_oid__fromstr(
 	        &oid, "a71586c1dfe8a71c6cbf6c129f404c5642ff31bd",
 	        GIT_OID_SHA1));
 

@@ -71,16 +71,14 @@ void test_checkout_tree__hydrates_missing_blob(void)
 {
 	static const char content[] = "hydrated content\n";
 	git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
-	git_object_id_options id_opts = GIT_OBJECT_ID_OPTIONS_INIT;
 	git_treebuilder *builder;
 	git_tree *tree;
 	git_oid blob_id;
 	git_oid tree_id;
 	missing_blob_data data = { content, false };
 
-	id_opts.object_type = GIT_OBJECT_BLOB;
-	cl_git_pass(git_object_id_from_buffer(
-		&blob_id, content, strlen(content), &id_opts));
+	cl_git_pass(git_odb_hash(
+		&blob_id, content, strlen(content), GIT_OBJECT_BLOB));
 
 	cl_git_pass(git_treebuilder_new(&builder, g_repo, NULL));
 	cl_git_pass(git_libgit2_opts(GIT_OPT_ENABLE_STRICT_OBJECT_CREATION, 0));
