@@ -117,8 +117,11 @@ static int mark_local(git_remote *remote)
 		/* If we have the object, mark it so we don't ask for it.
 		   However if we are unshallowing or changing history
 		   depth, we need to ask for it even though the head
-		   exists locally. */
+		   exists locally; and a filtered fetch of objects by
+		   ID wants what is beneath them, which a partial clone
+		   may lack even when it has the objects themselves. */
 		if (remote->nego.depth == GIT_FETCH_DEPTH_FULL &&
+		    !(remote->fetching_oids && remote->nego.filter_spec) &&
 		    git_odb_exists(odb, &head->oid))
 			head->local = 1;
 		else
@@ -402,7 +405,7 @@ int git_fetch_download_pack(git_remote *remote)
 			goto done;
 	}
 
-	if (remote->nego.filter_spec)
+	if (remote->nego.filter_spec && !remote->fetching_oids)
 		error = git_repository__set_partial_clone(
 			remote->repo, remote->name, remote->nego.filter_spec);
 

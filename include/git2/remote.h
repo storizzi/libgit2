@@ -1164,8 +1164,15 @@ GIT_EXTERN(int) git_remote_fetch(
  * This is useful for backfilling objects omitted by a partial clone.
  * The remote server must support fetching reachable objects by object ID.
  *
- * The supplied object IDs are fetched without an object filter and without
- * automatic tag following. Fetch callbacks in `opts` are honored.
+ * The supplied object IDs are fetched without automatic tag following.
+ * Fetch callbacks in `opts` are honored.
+ *
+ * Objects named here are always sent in full. When `opts` sets a
+ * `filter_spec`, it applies to what the server sends *beneath* them, and
+ * the IDs are requested even if they are present locally: fetching the
+ * tree of a directory with `blob:limit=<n>`, for example, brings that
+ * directory's blobs up to `n` bytes and leaves larger ones out. The filter
+ * is not recorded as the repository's partial clone filter.
  *
  * @param remote remote to fetch from
  * @param oids object IDs to fetch

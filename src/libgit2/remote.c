@@ -1472,7 +1472,6 @@ int git_remote_fetch_oids(
 	refspecs.count = oids->count;
 
 	opts.download_tags = GIT_REMOTE_DOWNLOAD_TAGS_NONE;
-	opts.filter_spec = NULL;
 	remote->fetching_oids = 1;
 	error = git_remote_fetch(remote, &refspecs, &opts, NULL);
 	remote->fetching_oids = 0;

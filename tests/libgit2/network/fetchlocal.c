@@ -182,6 +182,48 @@ void test_network_fetchlocal__promisor_fetch_marks_its_pack(void)
 	cleanup_promisor_repository(repo, origin, odb);
 }
 
+void test_network_fetchlocal__filtered_fetch_oids_wants_present_objects(void)
+{
+	git_repository *repo;
+	git_remote *origin;
+	git_odb *odb;
+	git_oid oid;
+	git_oidarray oids;
+	git_fetch_options opts = GIT_FETCH_OPTIONS_INIT;
+	git_config *config;
+	git_buf filter = GIT_BUF_INIT;
+
+	setup_promisor_repository(&repo, &origin, &odb);
+	cl_git_pass(git_oid_from_string(
+	        &oid, "944c0f6e4dfa41595e6eb3ceecdb14f50fe18162", GIT_OID_SHA1));
+
+	oids.ids = &oid;
+	oids.count = 1;
+
+	/* Unfiltered, a present object is not asked for again. */
+	cl_git_pass(git_remote_fetch_oids(origin, &oids, NULL));
+	cl_assert(git_odb_exists(odb, &oid));
+	cl_git_pass(git_remote_fetch_oids(origin, &oids, NULL));
+
+	/*
+	 * Filtered, it is: the filter is about what lies beneath it. The
+	 * local transport takes no filter, so reaching it is the proof.
+	 */
+	opts.filter_spec = "blob:limit=1k";
+	cl_git_fail_with(GIT_ENOTSUPPORTED,
+	        git_remote_fetch_oids(origin, &oids, &opts));
+
+	/* The repository's own filter is left as it was. */
+	cl_git_pass(git_repository_config_snapshot(&config, repo));
+	cl_git_pass(git_config_get_string_buf(
+	        &filter, config, "remote.origin.partialclonefilter"));
+	cl_assert_equal_s("blob:none", filter.ptr);
+
+	git_buf_dispose(&filter);
+	git_config_free(config);
+	cleanup_promisor_repository(repo, origin, odb);
+}
+
 void test_network_fetchlocal__ordinary_fetch_marks_no_pack(void)
 {
 	git_repository *repo;
