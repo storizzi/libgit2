@@ -443,7 +443,8 @@ int git_smart__negotiate_fetch(
 		goto on_error;
 
 	opts.insert_by_date = 1;
-	if ((error = git_revwalk__push_glob(walk, "refs/*", &opts)) < 0)
+	if (!wants->no_haves &&
+	    (error = git_revwalk__push_glob(walk, "refs/*", &opts)) < 0)
 		goto on_error;
 
 	if (wants->depth > 0) {

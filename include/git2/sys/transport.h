@@ -39,6 +39,15 @@ typedef struct {
 	size_t shallow_roots_len;
 	int depth;
 	const char *filter_spec;
+
+	/**
+	 * Send no "have" lines. Set when fetching objects by ID to fill in a
+	 * partial clone: a server leaves out every object reachable from a
+	 * commit the client says it has, which includes the very objects a
+	 * partial clone omitted (git does the same, with its "noop" fetch
+	 * negotiation for promisor fetches).
+	 */
+	int no_haves;
 } git_fetch_negotiation;
 
 struct git_transport {
