@@ -20,6 +20,9 @@
 #include "repository.h"
 #include "refs.h"
 #include "transports/smart.h"
+#include "futils.h"
+#include "fs_path.h"
+#include "config.h"
 
 static bool filter_spec_is_blob_limit(const char *filter_spec)
 {
@@ -275,29 +278,139 @@ int git_fetch_negotiate(git_remote *remote, const git_fetch_options *opts)
 	return error;
 }
 
+/*
+ * Whether this fetch comes from a promisor remote: the filtered fetch that
+ * makes a partial clone, a fetch of omitted objects by ID, or any fetch
+ * from the remote that extensions.partialclone names.
+ */
+static bool fetch_is_from_promisor(git_remote *remote)
+{
+	git_config *config;
+	git_str key = GIT_STR_INIT;
+	int promisor = 0;
+
+	if (remote->nego.filter_spec || remote->fetching_oids)
+		return true;
+
+	if (!remote->name ||
+	    git_repository_config__weakptr(&config, remote->repo) < 0 ||
+	    git_str_printf(&key, "remote.%s.promisor", remote->name) < 0 ||
+	    git_config_get_bool(&promisor, config, key.ptr) < 0)
+		promisor = 0;
+
+	git_error_clear();
+	git_str_dispose(&key);
+	return promisor != 0;
+}
+
+static int list_packs(git_vector *out, git_str *packdir, git_repository *repo)
+{
+	int error;
+
+	if ((error = git_repository__item_path(packdir, repo, GIT_REPOSITORY_ITEM_OBJECTS)) < 0 ||
+	    (error = git_str_joinpath(packdir, packdir->ptr, "pack")) < 0)
+		return error;
+
+	if (!git_fs_path_isdir(packdir->ptr))
+		return 0;
+
+	return git_fs_path_dirload(out, packdir->ptr, packdir->size + 1, 0);
+}
+
+/*
+ * Mark each pack this fetch added as a promisor pack, with a
+ * "<pack>.promisor" file beside it, as git's index-pack --promisor does.
+ * git (fsck, gc, repack, and its own lazy fetch) uses the marker to tell
+ * an object a partial clone omitted on purpose from one that is lost.
+ */
+static int mark_promisor_packs(git_repository *repo, git_vector *before)
+{
+	git_vector after = GIT_VECTOR_INIT;
+	git_str packdir = GIT_STR_INIT, marker = GIT_STR_INIT;
+	const char *name;
+	size_t i, j;
+	int error;
+
+	if ((error = list_packs(&after, &packdir, repo)) < 0)
+		goto done;
+
+	git_vector_foreach(&after, i, name) {
+		const char *seen;
+		bool existed = false;
+		size_t len = strlen(name);
+
+		if (len < 5 || strcmp(name + len - 5, ".pack"))
+			continue;
+
+		git_vector_foreach(before, j, seen) {
+			if (!strcmp(seen, name)) {
+				existed = true;
+				break;
+			}
+		}
+
+		if (existed)
+			continue;
+
+		git_str_clear(&marker);
+		if ((error = git_str_joinpath(&marker, packdir.ptr, name)) < 0)
+			goto done;
+
+		git_str_truncate(&marker, marker.size - 5);
+
+		if ((error = git_str_puts(&marker, ".promisor")) < 0 ||
+		    (error = git_futils_writebuffer(&marker, marker.ptr, O_CREAT | O_EXCL | O_WRONLY, 0444)) < 0) {
+			if (error == GIT_EEXISTS) {
+				git_error_clear();
+				error = 0;
+				continue;
+			}
+			goto done;
+		}
+	}
+
+done:
+	git_vector_dispose_deep(&after);
+	git_str_dispose(&packdir);
+	git_str_dispose(&marker);
+	return error;
+}
+
 int git_fetch_download_pack(git_remote *remote)
 {
 	git_oidarray shallow_roots = { NULL };
 	git_transport *t = remote->transport;
-	int error;
+	git_vector packs_before = GIT_VECTOR_INIT;
+	git_str packdir = GIT_STR_INIT;
+	bool promisor = fetch_is_from_promisor(remote);
+	int error = 0;
 
 	if (remote->need_pack) {
+		if (promisor &&
+		    (error = list_packs(&packs_before, &packdir, remote->repo)) < 0)
+			goto done;
+
 		if ((error = t->download_pack(t, remote->repo, &remote->stats)) != 0 ||
 		    (error = t->shallow_roots(&shallow_roots, t)) != 0)
-			return error;
+			goto done;
 
-		error = git_repository__shallow_roots_write(remote->repo, &shallow_roots);
-		git_oidarray_dispose(&shallow_roots);
+		if (promisor &&
+		    (error = mark_promisor_packs(remote->repo, &packs_before)) < 0)
+			goto done;
 
-		if (error < 0)
-			return error;
+		if ((error = git_repository__shallow_roots_write(remote->repo, &shallow_roots)) < 0)
+			goto done;
 	}
 
 	if (remote->nego.filter_spec)
-		return git_repository__set_partial_clone(
+		error = git_repository__set_partial_clone(
 			remote->repo, remote->name, remote->nego.filter_spec);
 
-	return 0;
+done:
+	git_oidarray_dispose(&shallow_roots);
+	git_vector_dispose_deep(&packs_before);
+	git_str_dispose(&packdir);
+	return error;
 }
 
 int git_fetch_options_init(git_fetch_options *opts, unsigned int version)

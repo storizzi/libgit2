@@ -136,6 +136,70 @@ void test_network_fetchlocal__fetch_promisor_oids(void)
 	git_repository_free(repo);
 }
 
+static size_t count_pack_files(git_repository *repo, const char *suffix)
+{
+	git_str path = GIT_STR_INIT;
+	git_vector entries = GIT_VECTOR_INIT;
+	const char *name;
+	size_t i, count = 0, suffix_len = strlen(suffix);
+
+	cl_git_pass(git_str_joinpath(&path, git_repository_path(repo), "objects/pack"));
+	if (git_fs_path_isdir(path.ptr)) {
+		cl_git_pass(git_fs_path_dirload(&entries, path.ptr, path.size + 1, 0));
+		git_vector_foreach(&entries, i, name) {
+			size_t len = strlen(name);
+			if (len > suffix_len && !strcmp(name + len - suffix_len, suffix))
+				count++;
+		}
+	}
+
+	git_vector_dispose_deep(&entries);
+	git_str_dispose(&path);
+	return count;
+}
+
+void test_network_fetchlocal__promisor_fetch_marks_its_pack(void)
+{
+	git_repository *repo;
+	git_remote *origin;
+	git_odb *odb;
+	git_oid oid;
+	git_oidarray oids;
+
+	setup_promisor_repository(&repo, &origin, &odb);
+	cl_git_pass(git_oid_from_string(
+	        &oid, "a8233120f6ad708f843d861ce2b7228ec4e3dec6", GIT_OID_SHA1));
+
+	oids.ids = &oid;
+	oids.count = 1;
+
+	cl_git_pass(git_repository_fetch_promisor(repo, &oids, NULL));
+	cl_assert(count_pack_files(repo, ".pack") > 0);
+	cl_assert_equal_sz(
+	        count_pack_files(repo, ".pack"),
+	        count_pack_files(repo, ".promisor"));
+
+	cleanup_promisor_repository(repo, origin, odb);
+}
+
+void test_network_fetchlocal__ordinary_fetch_marks_no_pack(void)
+{
+	git_repository *repo;
+	git_remote *origin;
+	const char *url = cl_git_fixture_url("testrepo.git");
+
+	cl_set_cleanup(&cleanup_local_repo, "foo");
+	cl_git_pass(git_repository_init(&repo, "foo", true));
+	cl_git_pass(git_remote_create(&origin, repo, GIT_REMOTE_ORIGIN, url));
+	cl_git_pass(git_remote_fetch(origin, NULL, NULL, NULL));
+
+	cl_assert(count_pack_files(repo, ".pack") > 0);
+	cl_assert_equal_sz(0, count_pack_files(repo, ".promisor"));
+
+	git_remote_free(origin);
+	git_repository_free(repo);
+}
+
 void test_network_fetchlocal__reads_promisor_objects(void)
 {
 	git_repository *repo;
