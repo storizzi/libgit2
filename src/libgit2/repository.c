@@ -2004,6 +2004,24 @@ int git_repository__set_objectformat(
 	return 0;
 }
 
+bool git_repository__is_partial_clone(git_repository *repo)
+{
+	git_config *config;
+	git_config_entry *entry = NULL;
+	bool partial;
+
+	if (git_repository_config__weakptr(&config, repo) < 0) {
+		git_error_clear();
+		return false;
+	}
+
+	partial = git_config_get_entry(&entry, config, "extensions.partialclone") == 0 &&
+		entry->value && *entry->value;
+	git_config_entry_free(entry);
+	git_error_clear();
+	return partial;
+}
+
 int git_repository__set_partial_clone(
 	git_repository *repo,
 	const char *remote_name,
