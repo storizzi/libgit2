@@ -226,3 +226,52 @@ void test_repo_sparse__update_index_does_not_read_excluded_objects(void)
 
 	git_index_free(index);
 }
+
+void test_repo_sparse__excluded_files_absent_from_disk_are_not_deleted(void)
+{
+	char *directories[] = { "subdir" };
+	git_strarray sparse_directories = { directories, 1 };
+	git_status_options status_opts = GIT_STATUS_OPTIONS_INIT;
+	git_status_list *status;
+	git_index *index;
+	git_str path = GIT_STR_INIT;
+	size_t i, skipped = 0;
+
+	cl_git_pass(git_sparse_checkout_set(g_repo, &sparse_directories));
+	cl_git_pass(git_sparse_checkout_update_index(g_repo));
+
+	/* What a sparse checkout leaves out is not on disk. */
+	cl_git_pass(git_repository_index(&index, g_repo));
+	for (i = 0; i < git_index_entrycount(index); i++) {
+		const git_index_entry *entry = git_index_get_byindex(index, i);
+
+		if (!(entry->flags_extended & GIT_INDEX_ENTRY_SKIP_WORKTREE))
+			continue;
+
+		cl_git_pass(git_str_joinpath(&path,
+			git_repository_workdir(g_repo), entry->path));
+		if (git_fs_path_exists(path.ptr))
+			cl_git_pass(p_unlink(path.ptr));
+		skipped++;
+	}
+	cl_assert(skipped > 0);
+
+	status_opts.show = GIT_STATUS_SHOW_WORKDIR_ONLY;
+	cl_git_pass(git_status_list_new(&status, g_repo, &status_opts));
+	for (i = 0; i < git_status_list_entrycount(status); i++) {
+		const git_status_entry *e = git_status_byindex(status, i);
+		const git_index_entry *entry;
+
+		if (!(e->status & GIT_STATUS_WT_DELETED))
+			continue;
+
+		entry = git_index_get_bypath(
+			index, e->index_to_workdir->old_file.path, 0);
+		cl_assert(entry);
+		cl_assert(!(entry->flags_extended & GIT_INDEX_ENTRY_SKIP_WORKTREE));
+	}
+
+	git_status_list_free(status);
+	git_str_dispose(&path);
+	git_index_free(index);
+}
