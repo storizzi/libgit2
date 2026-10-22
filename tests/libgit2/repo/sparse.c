@@ -191,3 +191,38 @@ void test_repo_sparse__rejects_staged_changes(void)
 
 	git_index_free(index);
 }
+
+void test_repo_sparse__update_index_does_not_read_excluded_objects(void)
+{
+	char *directories[] = { "subdir" };
+	git_strarray sparse_directories = { directories, 1 };
+	git_index *index;
+	git_index_entry entry;
+	const git_index_entry *updated;
+
+	/*
+	 * A partial clone's index names blobs it never fetched. Marking them
+	 * skip-worktree must not look them up: in a partial clone that lookup
+	 * would fetch every omitted blob from the promisor remote.
+	 */
+	cl_git_pass(git_repository_index(&index, g_repo));
+	memset(&entry, 0, sizeof(entry));
+	entry.path = "omitted/file.txt";
+	entry.mode = GIT_FILEMODE_BLOB;
+	cl_git_pass(git_oid_from_string(&entry.id,
+		"deadbeefdeadbeefdeadbeefdeadbeefdeadbeef", GIT_OID_SHA1));
+	cl_git_pass(git_libgit2_opts(GIT_OPT_ENABLE_STRICT_OBJECT_CREATION, 0));
+	cl_git_pass(git_index_add(index, &entry));
+	cl_git_pass(git_libgit2_opts(GIT_OPT_ENABLE_STRICT_OBJECT_CREATION, 1));
+	cl_git_pass(git_index_write(index));
+
+	cl_git_pass(git_sparse_checkout_set(g_repo, &sparse_directories));
+	cl_git_pass(git_sparse_checkout_update_index(g_repo));
+
+	cl_git_pass(git_index_read(index, true));
+	cl_assert((updated = git_index_get_bypath(index, "omitted/file.txt", 0)) != NULL);
+	cl_assert(updated->flags_extended & GIT_INDEX_ENTRY_SKIP_WORKTREE);
+	cl_assert_equal_oid(&entry.id, &updated->id);
+
+	git_index_free(index);
+}

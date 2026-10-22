@@ -151,6 +151,13 @@ GIT_INLINE(unsigned char *) git_index__checksum(git_index *index)
 /* If the path is conflicted, move it from the index to reuc. */
 int git_index__conflict_to_reuc(git_index *index, const char *path);
 
+/*
+ * Set or clear an entry's skip-worktree flag in place. Only the flag changes,
+ * so, unlike git_index_add, the entry's object is not looked up: in a partial
+ * clone that lookup would fetch every omitted blob.
+ */
+int git_index__set_skip_worktree(git_index *index, const char *path, int stage, bool skip);
+
 /* Copy the current entries vector *and* increment the index refcount.
  * Call `git_index__release_snapshot` when done.
  */
