@@ -1356,6 +1356,31 @@ static void index_existing_and_best(
  *
  * trust_id is whether we trust the id or it should be validated.
  */
+int git_index__set_skip_worktree(
+	git_index *index, const char *path, int stage, bool skip)
+{
+	git_index_entry *entry;
+	size_t pos;
+
+	GIT_ASSERT_ARG(index);
+	GIT_ASSERT_ARG(path);
+
+	if (index_find(&pos, index, path, 0, stage) < 0) {
+		git_error_set(GIT_ERROR_INDEX, "index does not contain '%s'", path);
+		return GIT_ENOTFOUND;
+	}
+
+	entry = git_vector_get(&index->entries, pos);
+
+	if (skip)
+		entry->flags_extended |= GIT_INDEX_ENTRY_SKIP_WORKTREE;
+	else
+		entry->flags_extended &= ~GIT_INDEX_ENTRY_SKIP_WORKTREE;
+
+	index->dirty = 1;
+	return 0;
+}
+
 static int index_insert(
 	git_index *index,
 	git_index_entry **entry_ptr,

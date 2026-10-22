@@ -15,6 +15,7 @@
 #include "config.h"
 #include "filebuf.h"
 #include "futils.h"
+#include "index.h"
 #include "path.h"
 #include "vector.h"
 
@@ -261,21 +262,16 @@ int git_sparse_checkout_update_index(git_repository *repo)
 		goto done;
 
 	while ((error = git_index_iterator_next(&entry, iterator)) == 0) {
-		git_index_entry updated = *entry;
 		bool included =
 		        sparse_checkout_path_is_in_cone(entry->path, &patterns);
+		bool skipped = (entry->flags_extended &
+		                GIT_INDEX_ENTRY_SKIP_WORKTREE) != 0;
 
-		if (GIT_INDEX_ENTRY_STAGE(entry) != 0)
+		if (GIT_INDEX_ENTRY_STAGE(entry) != 0 || included != skipped)
 			continue;
 
-		if (included)
-			updated.flags_extended &=
-			        ~GIT_INDEX_ENTRY_SKIP_WORKTREE;
-		else
-			updated.flags_extended |= GIT_INDEX_ENTRY_SKIP_WORKTREE;
-
-		if (updated.flags_extended != entry->flags_extended &&
-		    (error = git_index_add(index, &updated)) < 0)
+		if ((error = git_index__set_skip_worktree(
+		             index, entry->path, 0, !included)) < 0)
 			goto done;
 	}
 
@@ -577,8 +573,8 @@ int git_sparse_checkout_disable(
 		            0)
 			continue;
 
-		updated.flags_extended &= ~GIT_INDEX_ENTRY_SKIP_WORKTREE;
-		if ((error = git_index_add(index, &updated)) < 0)
+		if ((error = git_index__set_skip_worktree(
+		             index, updated.path, 0, false)) < 0)
 			goto done;
 	}
 
