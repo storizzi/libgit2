@@ -285,6 +285,9 @@ int git_repository__set_objectformat(
 	git_repository *repo,
 	git_oid_t oid_type);
 
+/* Whether extensions.partialclone names a promisor remote. */
+bool git_repository__is_partial_clone(git_repository *repo);
+
 int git_repository__set_partial_clone(
 	git_repository *repo,
 	const char *remote_name,

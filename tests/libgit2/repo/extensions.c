@@ -125,3 +125,29 @@ void test_repo_extensions__partialclone(void)
 	cl_git_pass(git_repository_open(&extended, "empty_bare.git"));
 	git_repository_free(extended);
 }
+
+void test_repo_extensions__partialclone_accepts_promised_objects(void)
+{
+	git_treebuilder *builder;
+	git_oid missing;
+
+	/*
+	 * A tree that names a blob the object database doesn't have: in a
+	 * partial clone that is a blob the clone omitted, which the promisor
+	 * remote has. Validating it would fetch it.
+	 */
+	cl_git_pass(git_oid_from_string(&missing,
+		"deadbeefdeadbeefdeadbeefdeadbeefdeadbeef", GIT_OID_SHA1));
+
+	cl_git_pass(git_treebuilder_new(&builder, repo, NULL));
+	cl_git_fail(git_treebuilder_insert(
+		NULL, builder, "omitted.txt", &missing, GIT_FILEMODE_BLOB));
+	git_treebuilder_free(builder);
+
+	cl_repo_set_string(repo, "extensions.partialclone", "origin");
+
+	cl_git_pass(git_treebuilder_new(&builder, repo, NULL));
+	cl_git_pass(git_treebuilder_insert(
+		NULL, builder, "omitted.txt", &missing, GIT_FILEMODE_BLOB));
+	git_treebuilder_free(builder);
+}

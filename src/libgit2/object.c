@@ -594,8 +594,20 @@ bool git_object__is_valid(
 	if (!git_object__strict_input_validation)
 		return true;
 
-	if ((error = git_repository_odb__weakptr(&odb, repo)) < 0 ||
-		(error = git_odb_read_header(&len, &actual_type, odb, id)) < 0)
+	if ((error = git_repository_odb__weakptr(&odb, repo)) < 0)
+		return false;
+
+	/*
+	 * In a partial clone an object that isn't here may simply not have
+	 * been fetched: it is promised by the promisor remote. Reading its
+	 * header would fetch it (and, for a tree builder or index over a
+	 * blob:none clone, every omitted blob), so take it as valid, as git
+	 * does for objects it can't see in a partial clone.
+	 */
+	if (!git_odb_exists(odb, id) && git_repository__is_partial_clone(repo))
+		return true;
+
+	if ((error = git_odb_read_header(&len, &actual_type, odb, id)) < 0)
 		return false;
 
 	if (expected_type != GIT_OBJECT_ANY && expected_type != actual_type) {
