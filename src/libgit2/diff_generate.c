@@ -1205,6 +1205,27 @@ static int handle_unmatched_old_item(
 	git_delta_t delta_type = GIT_DELTA_DELETED;
 	int error;
 
+	/*
+	 * A skip-worktree entry is meant to be absent from the working
+	 * directory (a sparse checkout leaves it out), so absent is unchanged,
+	 * not deleted, as git treats it. A present one is compared as usual
+	 * and found unmodified by maybe_modified.
+	 */
+	if (info->new_iter->type == GIT_ITERATOR_WORKDIR &&
+	    (info->oitem->flags_extended & GIT_INDEX_ENTRY_SKIP_WORKTREE) != 0 &&
+	    !git_index_entry_is_conflict(info->oitem)) {
+		const char *matched_pathspec;
+
+		if (diff_pathspec_match(&matched_pathspec, diff, info->oitem) &&
+		    (error = diff_delta__from_two(diff, GIT_DELTA_UNMODIFIED,
+				info->oitem, info->oitem->mode,
+				info->oitem, info->oitem->mode,
+				NULL, matched_pathspec)) < 0)
+			return error;
+
+		return iterator_advance(&info->oitem, info->old_iter);
+	}
+
 	/* update delta_type if this item is conflicted */
 	if (git_index_entry_is_conflict(info->oitem))
 		delta_type = GIT_DELTA_CONFLICTED;
