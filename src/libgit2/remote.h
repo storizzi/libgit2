@@ -39,6 +39,8 @@ struct git_remote {
 	int prune_refs;
 	int passed_refspecs;
 	git_fetch_negotiation nego;
+	/* git_remote_fetch_oids is filling in a partial clone */
+	int fetching_oids;
 };
 
 int git_remote__urlfordirection(git_str *url_out, struct git_remote *remote, int direction, const git_remote_callbacks *callbacks);

@@ -228,6 +228,7 @@ int git_fetch_negotiate(git_remote *remote, const git_fetch_options *opts)
 
 	remote->need_pack = 0;
 	remote->nego.filter_spec = NULL;
+	remote->nego.no_haves = remote->fetching_oids;
 
 	if (opts) {
 		GIT_ASSERT_ARG(opts->depth >= 0);
