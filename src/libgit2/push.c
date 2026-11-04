@@ -367,6 +367,15 @@ static int queue_objects(git_push *push)
 		if (git_oid_is_zero(&head->oid))
 			continue;
 
+		/*
+		 * Only the advertised tips we have, as git does: in a partial
+		 * clone, looking up one we lack would fetch it from the promisor
+		 * remote (a branch a single-branch clone left out, every commit
+		 * and tree of it).
+		 */
+		if (!git_odb_exists(push->repo->_odb, &head->oid))
+			continue;
+
 		if ((error = git_revwalk_hide(rw, &head->oid)) < 0 &&
 		    error != GIT_ENOTFOUND && error != GIT_EINVALIDSPEC && error != GIT_EPEEL)
 			goto on_error;
