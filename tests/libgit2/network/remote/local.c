@@ -512,3 +512,76 @@ void test_network_remote_local__anonymous_remote_inmemory_repo(void)
 	git_remote_free(remote);
 	git_repository_free(inmemory);
 }
+
+void test_network_remote_local__partial_clone_push_skips_tips_it_lacks(void)
+{
+	char *refspec_strings[] = {
+		"master:master",
+	};
+	git_strarray array = {
+		refspec_strings,
+		1,
+	};
+	git_repository *bare;
+	git_remote *localremote;
+	git_reference *ref;
+	git_commit *head;
+	git_tree *tree;
+	git_signature *sig;
+	git_oid other, mine;
+
+	connect_to_local_repository(cl_fixture("testrepo.git"));
+	cl_git_pass(git_remote_fetch(remote, &array, NULL, NULL));
+
+	/*
+	 * The remote has master and a branch whose tip this repository never
+	 * fetched (a single-branch clone): a commit only the remote has.
+	 */
+	cl_git_pass(git_repository_init(&bare, "./localbare.git", 1));
+	cl_git_pass(git_remote_create_anonymous(&localremote, repo, "./localbare.git"));
+	cl_git_pass(git_remote_push(localremote, &push_array, NULL));
+	git_remote_free(localremote);
+
+	cl_git_pass(git_reference_lookup(&ref, bare, "refs/heads/master"));
+	cl_git_pass(git_commit_lookup(&head, bare, git_reference_target(ref)));
+	cl_git_pass(git_commit_tree(&tree, head));
+	cl_git_pass(git_signature_now(&sig, "Other", "other@example.com"));
+	cl_git_pass(git_commit_create(&other, bare, "refs/heads/other", sig, sig,
+		NULL, "only on the remote", tree, 1, (const git_commit **)&head));
+	git_tree_free(tree);
+	git_commit_free(head);
+	git_reference_free(ref);
+	git_repository_free(bare);
+
+	/* A new commit here to push. */
+	cl_git_pass(git_reference_lookup(&ref, repo, "refs/heads/master"));
+	cl_git_pass(git_commit_lookup(&head, repo, git_reference_target(ref)));
+	cl_git_pass(git_commit_tree(&tree, head));
+	cl_git_pass(git_commit_create(&mine, repo, "refs/heads/master", sig, sig,
+		NULL, "mine", tree, 1, (const git_commit **)&head));
+	git_tree_free(tree);
+	git_commit_free(head);
+	git_reference_free(ref);
+	git_signature_free(sig);
+
+	/*
+	 * As a partial clone, a lookup of the remote's other tip would ask the
+	 * promisor remote for it: one that can't be reached here, as one that
+	 * needs credentials can't be outside a clone. Push hides only the
+	 * advertised tips it has, as git does.
+	 */
+	cl_repo_set_string(repo, "extensions.partialclone", "promisor");
+	cl_repo_set_string(repo, "remote.promisor.url", "file:///nonexistent/promisor.git");
+	cl_repo_set_bool(repo, "remote.promisor.promisor", true);
+
+	cl_git_pass(git_remote_create_anonymous(&localremote, repo, "./localbare.git"));
+	cl_git_pass(git_remote_push(localremote, &push_array, NULL));
+	git_remote_free(localremote);
+
+	cl_git_pass(git_repository_open(&bare, "./localbare.git"));
+	cl_git_pass(git_reference_lookup(&ref, bare, "refs/heads/master"));
+	cl_assert_equal_oid(&mine, git_reference_target(ref));
+	git_reference_free(ref);
+	git_repository_free(bare);
+	cl_fixture_cleanup("localbare.git");
+}
